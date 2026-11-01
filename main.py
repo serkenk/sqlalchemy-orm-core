@@ -113,6 +113,57 @@ async def create_post_endpoint(
     return await crud.create_user_post(db=db, post_in=post_in, user_id=current_user.id)
 
 
+@app.get("/me", response_model=schemas.UserResponse)
+async def read_users_me_endpoint(
+    current_user: CurrentUser,
+):
+    """Retrieves the profile information and posts of the currently authenticated user."""
+    return current_user
+
+
+@app.put("/posts/{post_id}", response_model=schemas.PostResponse)
+async def update_post_endpoint(
+    post_id: int,
+    post_in: schemas.PostCreate,
+    db: DbSession,
+    current_user: CurrentUser,
+):
+    """Updates a post if it belongs to the currently authenticated user."""
+    db_post = await crud.get_post_by_id(db, post_id=post_id)
+    if not db_post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post not found.",
+        )
+    if db_post.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update this post.",
+        )
+    return await crud.update_post(db=db, db_post=db_post, post_in=post_in)
+
+
+@app.delete("/posts/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_post_endpoint(
+    post_id: int,
+    db: DbSession,
+    current_user: CurrentUser,
+):
+    """Deletes a post if it belongs to the currently authenticated user."""
+    db_post = await crud.get_post_by_id(db, post_id=post_id)
+    if not db_post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Post not found.",
+        )
+    if db_post.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to delete this post.",
+        )
+    await crud.delete_post(db=db, db_post=db_post)
+
+
 @app.get("/users/", response_model=list[schemas.UserResponse])
 async def read_users_endpoint(
     db: DbSession,

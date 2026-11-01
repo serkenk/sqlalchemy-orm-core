@@ -55,6 +55,27 @@ async def get_user_by_id(db: AsyncSession, user_id: int) -> models.User | None:
     return result.scalar_one_or_none()
 
 
+async def get_post_by_id(db: AsyncSession, post_id: int) -> models.Post | None:
+    stmt = select(models.Post).where(models.Post.id == post_id)
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def update_post(
+    db: AsyncSession, db_post: models.Post, post_in: schemas.PostCreate
+) -> models.Post:
+    db_post.title = post_in.title
+    db_post.content = post_in.content
+    await db.flush()
+    await db.refresh(db_post)
+    return db_post
+
+
+async def delete_post(db: AsyncSession, db_post: models.Post) -> None:
+    await db.delete(db_post)
+    await db.flush()
+
+
 async def create_user_post(
     db: AsyncSession, post_in: schemas.PostCreate, user_id: int
 ) -> models.Post:
