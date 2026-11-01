@@ -1,4 +1,3 @@
-# schemas.py
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
@@ -32,12 +31,25 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    pass
+    password: str = Field(..., min_length=8)
 
 
 class UserResponse(UserBase):
     id: int
+    is_active: bool
     created_at: datetime
     posts: list[PostResponse] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# --- TOKEN SCHEMAS ---
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class TokenData(BaseModel):
+    user_id: int | None = None

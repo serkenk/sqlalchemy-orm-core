@@ -1,21 +1,35 @@
-# crud.py
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 import models
 import schemas
+from security import get_password_hash
 
 
 async def create_user(db: AsyncSession, user_in: schemas.UserCreate) -> models.User:
+    hashed_pwd = get_password_hash(user_in.password)
     new_user = models.User(
         username=user_in.username,
         email=user_in.email,
+        hashed_password=hashed_pwd,
     )
     db.add(new_user)
     await db.flush()
     await db.refresh(new_user)
-    return new_user
+    stmt = (
+        select(models.User)
+        .where(models.User.id == new_user.id)
+        .options(selectinload(models.User.posts))
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one()
+
+
+async def get_user_by_email(db: AsyncSession, email: str) -> models.User | None:
+    stmt = select(models.User).where(models.User.email == email)
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
 
 
 async def get_users(
