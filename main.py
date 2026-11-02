@@ -6,17 +6,15 @@ from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import crud
 import models
 import schemas
 from database import engine, get_db
-from security import (
-    create_access_token,
-    create_refresh_token,
-    decode_access_token,
-    oauth2_scheme,
-    verify_password,
-)
+from repositories.post_repository import PostRepository
+from repositories.user_repository import UserRepository
+from security import decode_access_token, oauth2_scheme
+from services.auth_service import AuthService
+from services.post_service import PostService
+from services.user_service import UserService
 
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
@@ -33,6 +31,7 @@ app = FastAPI(
 )
 
 
+# --- AUTH ENDPOINTS ---
 @app.post(
     "/register",
     response_model=schemas.UserResponse,
@@ -42,13 +41,9 @@ async def register_endpoint(
     user_in: schemas.UserCreate,
     db: DbSession,
 ):
-    existing_user = await crud.get_user_by_email(db, email=user_in.email)
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email is already registered.",
-        )
-    return await crud.create_user(db=db, user_in=user_in)
+    user_repo = UserRepository(db)
+    auth_service = AuthService(user_repo)
+    return await auth_service.register_user(user_in=user_in)
 
 
 @app.post("/login", response_model=schemas.Token)
@@ -56,17 +51,11 @@ async def login_endpoint(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: DbSession,
 ):
-    user = await crud.get_user_by_email(db, email=form_data.username)
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    access_token = create_access_token(subject=user.id)
-    refresh_token = create_refresh_token(subject=user.id)
-    return schemas.Token(access_token=access_token, refresh_token=refresh_token)
+    user_repo = UserRepository(db)
+    auth_service = AuthService(user_repo)
+    return await auth_service.authenticate_user(
+        username_email=form_data.username, password=form_data.password
+    )
 
 
 @app.post("/refresh", response_model=schemas.Token)
@@ -74,35 +63,12 @@ async def refresh_token_endpoint(
     body: schemas.TokenRefreshRequest,
     db: DbSession,
 ):
-    """Generates a new access_token and refresh_token using a valid refresh_token."""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid or expired refresh token.",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    try:
-        payload = decode_access_token(body.refresh_token)
-        token_type: str | None = payload.get("type")
-        user_id_str: str | None = payload.get("sub")
-
-        if token_type != "refresh" or user_id_str is None:
-            raise credentials_exception
-
-        user_id = int(user_id_str)
-    except (jwt.PyJWTError, ValueError):
-        raise credentials_exception
-
-    user = await crud.get_user_by_id(db, user_id=user_id)
-    if user is None or not user.is_active:
-        raise credentials_exception
-
-    new_access_token = create_access_token(subject=user.id)
-    new_refresh_token = create_refresh_token(subject=user.id)
-
-    return schemas.Token(access_token=new_access_token, refresh_token=new_refresh_token)
+    user_repo = UserRepository(db)
+    auth_service = AuthService(user_repo)
+    return await auth_service.refresh_tokens(refresh_token=body.refresh_token)
 
 
+# --- DEPENDENCY: AUTHENTICATED USER ---
 async def get_current_user(
     db: DbSession,
     token: Annotated[str, Depends(oauth2_scheme)],
@@ -125,7 +91,8 @@ async def get_current_user(
     except (jwt.PyJWTError, ValueError):
         raise credentials_exception
 
-    user = await crud.get_user_by_id(db, user_id=user_id)
+    user_repo = UserRepository(db)
+    user = await user_repo.get_by_id(user_id=user_id)
     if user is None:
         raise credentials_exception
     return user
@@ -145,15 +112,15 @@ async def create_post_endpoint(
     db: DbSession,
     current_user: CurrentUser,
 ):
-    """Creates a new post for the currently authenticated user."""
-    return await crud.create_user_post(db=db, post_in=post_in, user_id=current_user.id)
+    post_repo = PostRepository(db)
+    post_service = PostService(post_repo)
+    return await post_service.create_post(post_in=post_in, user_id=current_user.id)
 
 
 @app.get("/me", response_model=schemas.UserResponse)
 async def read_users_me_endpoint(
     current_user: CurrentUser,
 ):
-    """Retrieves the profile information and posts of the currently authenticated user."""
     return current_user
 
 
@@ -164,19 +131,11 @@ async def update_post_endpoint(
     db: DbSession,
     current_user: CurrentUser,
 ):
-    """Updates a post if it belongs to the currently authenticated user."""
-    db_post = await crud.get_post_by_id(db, post_id=post_id)
-    if not db_post:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Post not found.",
-        )
-    if db_post.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to update this post.",
-        )
-    return await crud.update_post(db=db, db_post=db_post, post_in=post_in)
+    post_repo = PostRepository(db)
+    post_service = PostService(post_repo)
+    return await post_service.update_post(
+        post_id=post_id, post_in=post_in, current_user=current_user
+    )
 
 
 @app.delete("/posts/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -185,28 +144,21 @@ async def delete_post_endpoint(
     db: DbSession,
     current_user: CurrentUser,
 ):
-    """Deletes a post if it belongs to the currently authenticated user."""
-    db_post = await crud.get_post_by_id(db, post_id=post_id)
-    if not db_post:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Post not found.",
-        )
-    if db_post.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to delete this post.",
-        )
-    await crud.delete_post(db=db, db_post=db_post)
+    post_repo = PostRepository(db)
+    post_service = PostService(post_repo)
+    await post_service.delete_post(post_id=post_id, current_user=current_user)
 
 
+# --- USER ENDPOINTS ---
 @app.get("/users/", response_model=list[schemas.UserResponse])
 async def read_users_endpoint(
     db: DbSession,
     skip: int = 0,
     limit: int = 100,
 ):
-    return await crud.get_users(db=db, skip=skip, limit=limit)
+    user_repo = UserRepository(db)
+    user_service = UserService(user_repo)
+    return await user_service.get_users(skip=skip, limit=limit)
 
 
 @app.get("/users/{user_id}", response_model=schemas.UserResponse)
@@ -214,13 +166,9 @@ async def read_user_endpoint(
     user_id: int,
     db: DbSession,
 ):
-    db_user = await crud.get_user_by_id(db=db, user_id=user_id)
-    if not db_user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Kullanıcı bulunamadı.",
-        )
-    return db_user
+    user_repo = UserRepository(db)
+    user_service = UserService(user_repo)
+    return await user_service.get_user_by_id(user_id=user_id)
 
 
 @app.post(
@@ -233,10 +181,10 @@ async def create_post_for_user_endpoint(
     post_in: schemas.PostCreate,
     db: DbSession,
 ):
-    db_user = await crud.get_user_by_id(db=db, user_id=user_id)
-    if not db_user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Kullanıcı bulunamadı.",
-        )
-    return await crud.create_user_post(db=db, post_in=post_in, user_id=user_id)
+    user_repo = UserRepository(db)
+    user_service = UserService(user_repo)
+    await user_service.get_user_by_id(user_id=user_id)
+
+    post_repo = PostRepository(db)
+    post_service = PostService(post_repo)
+    return await post_service.create_post(post_in=post_in, user_id=user_id)
