@@ -9,9 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import crud
 import models
 import schemas
-from database import Base, engine, get_db
+from database import engine, get_db
 from security import (
     create_access_token,
+    create_refresh_token,
     decode_access_token,
     oauth2_scheme,
     verify_password,
@@ -22,8 +23,6 @@ DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
     yield
     await engine.dispose()
 
@@ -57,7 +56,6 @@ async def login_endpoint(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: DbSession,
 ):
-    # Swagger UI username alanına email gönderir
     user = await crud.get_user_by_email(db, email=form_data.username)
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
@@ -67,7 +65,42 @@ async def login_endpoint(
         )
 
     access_token = create_access_token(subject=user.id)
-    return schemas.Token(access_token=access_token)
+    refresh_token = create_refresh_token(subject=user.id)
+    return schemas.Token(access_token=access_token, refresh_token=refresh_token)
+
+
+@app.post("/refresh", response_model=schemas.Token)
+async def refresh_token_endpoint(
+    body: schemas.TokenRefreshRequest,
+    db: DbSession,
+):
+    """Generates a new access_token and refresh_token using a valid refresh_token."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired refresh token.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        payload = decode_access_token(body.refresh_token)
+        token_type: str | None = payload.get("type")
+        user_id_str: str | None = payload.get("sub")
+
+        if token_type != "refresh" or user_id_str is None:
+            raise credentials_exception
+
+        user_id = int(user_id_str)
+    except (jwt.PyJWTError, ValueError):
+        raise credentials_exception
+
+    user = await crud.get_user_by_id(db, user_id=user_id)
+    if user is None or not user.is_active:
+        raise credentials_exception
+
+    new_access_token = create_access_token(subject=user.id)
+    new_refresh_token = create_refresh_token(subject=user.id)
+
+    return schemas.Token(access_token=new_access_token, refresh_token=new_refresh_token)
 
 
 async def get_current_user(
@@ -82,9 +115,12 @@ async def get_current_user(
     )
     try:
         payload = decode_access_token(token)
+        token_type: str | None = payload.get("type")
         user_id_str: str | None = payload.get("sub")
-        if user_id_str is None:
+
+        if token_type != "access" or user_id_str is None:
             raise credentials_exception
+
         user_id = int(user_id_str)
     except (jwt.PyJWTError, ValueError):
         raise credentials_exception

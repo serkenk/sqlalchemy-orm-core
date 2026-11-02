@@ -30,7 +30,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(
     subject: str | Any, expires_delta: timedelta | None = None
 ) -> str:
-    """Generates a signed JWT access token containing the subject claim (e.g., user_id)."""
+    """Generates a signed JWT access token containing the subject claim and type."""
     if expires_delta:
         expire = datetime.now(UTC) + expires_delta
     else:
@@ -41,6 +41,7 @@ def create_access_token(
     to_encode = {
         "exp": expire,
         "sub": str(subject),
+        "type": "access",
     }
 
     encoded_jwt = jwt.encode(
@@ -49,6 +50,23 @@ def create_access_token(
         algorithm=settings.ALGORITHM,
     )
     return encoded_jwt
+
+
+def create_refresh_token(subject: str | Any) -> str:
+    """Generates a signed JWT refresh token with a longer expiration time."""
+    expire = datetime.now(UTC) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+
+    to_encode = {
+        "exp": expire,
+        "sub": str(subject),
+        "type": "refresh",
+    }
+
+    return jwt.encode(
+        to_encode,
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
 
 
 def decode_access_token(token: str) -> dict[str, Any]:
