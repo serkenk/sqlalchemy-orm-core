@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -21,7 +21,7 @@ class UserRepository:
         self.db.add(new_user)
         await self.db.flush()
         await self.db.refresh(new_user)
-        
+
         stmt = (
             select(models.User)
             .where(models.User.id == new_user.id)
@@ -32,6 +32,18 @@ class UserRepository:
 
     async def get_by_email(self, email: str) -> models.User | None:
         stmt = select(models.User).where(models.User.email == email)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_by_username_or_email(
+        self, username_or_email: str
+    ) -> models.User | None:
+        stmt = select(models.User).where(
+            or_(
+                models.User.email == username_or_email,
+                models.User.username == username_or_email,
+            )
+        )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 

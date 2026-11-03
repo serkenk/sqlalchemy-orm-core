@@ -1,4 +1,3 @@
-# --- YENİ HALİ (services/auth_service.py) ---
 import jwt
 from fastapi import HTTPException, status
 
@@ -29,11 +28,13 @@ class AuthService:
     async def authenticate_user(
         self, username_email: str, password: str
     ) -> schemas.Token:
-        user = await self.user_repo.get_by_email(email=username_email)
+        user = await self.user_repo.get_by_username_or_email(
+            username_or_email=username_email
+        )
         if not user or not verify_password(password, user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect email or password.",
+                detail="Incorrect username/email or password.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 

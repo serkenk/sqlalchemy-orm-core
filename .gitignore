@@ -34,7 +34,8 @@ Desktop.ini
 *.log
 logs/
 
-# Notes
+# --- Temporary & Export Files ---
+create_test_db.py
 CONTEXT.md
 PROJECT_SNAPSHOT.txt
 export_project.py
