@@ -1,4 +1,6 @@
 # routers/users.py
+import asyncio
+
 from fastapi import APIRouter
 
 import schemas
@@ -6,18 +8,14 @@ from dependencies import CurrentUser, DbSession
 from repositories.user_repository import UserRepository
 from services.user_service import UserService
 
-router = APIRouter(
-    prefix="/users",
-    tags=["Users"],
-)
+router = APIRouter(prefix="/users", tags=["Users"])
 
 
 # 1. Giriş Yapan Kullanıcının Kendi Profil Bilgisi
 # URL: GET /users/me
 @router.get("/me", response_model=schemas.UserResponse)
-async def read_users_me_endpoint(
-    current_user: CurrentUser,
-):
+async def read_users_me_endpoint(current_user: CurrentUser):
+    await asyncio.sleep(2)
     return current_user
 
 

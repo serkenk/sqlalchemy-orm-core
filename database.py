@@ -15,9 +15,7 @@ if not DATABASE_URL:
 
 engine = create_async_engine(DATABASE_URL, echo=True)
 
-AsyncSessionFactory = async_sessionmaker(
-    bind=engine, autocommit=False, autoflush=False, expire_on_commit=False
-)
+AsyncSessionFactory = async_sessionmaker(bind=engine, expire_on_commit=False)
 
 
 class Base(DeclarativeBase):
