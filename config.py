@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     # Database Configuration
     DATABASE_URL: str
     TEST_DATABASE_URL: str
+    REDIS_URL: str
 
     # JWT Authentication Configuration
     SECRET_KEY: str

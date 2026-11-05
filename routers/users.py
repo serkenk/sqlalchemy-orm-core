@@ -4,7 +4,7 @@ import asyncio
 from fastapi import APIRouter
 
 import schemas
-from dependencies import CurrentUser, DbSession
+from dependencies import CurrentUser, DbSession, RedisSession
 from repositories.user_repository import UserRepository
 from services.user_service import UserService
 
@@ -38,7 +38,8 @@ async def read_users_endpoint(
 async def read_user_endpoint(
     user_id: int,
     db: DbSession,
+    redis: RedisSession,
 ):
     user_repo = UserRepository(db)
-    user_service = UserService(user_repo)
+    user_service = UserService(user_repo, redis=redis)
     return await user_service.get_user_by_id(user_id=user_id)
