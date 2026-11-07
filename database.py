@@ -6,9 +6,11 @@ from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
+from config import settings
+
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL", settings.DATABASE_URL)
 
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL ortam değişkeni bulunamadı.")
