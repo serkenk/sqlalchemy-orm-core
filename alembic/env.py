@@ -2,36 +2,34 @@ import asyncio
 import os
 from logging.config import fileConfig
 
-from dotenv import load_dotenv
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+# Tüm modellerinin Alembic tarafından tespiti için import edildiğinden emin ol
+import models  # noqa: F401
 from alembic import context
 
-# 1. Environment değişkenlerini yükle
-load_dotenv()
+# 1. Projedeki Base ve settings importları
+from config import settings
+from database import Base
 
 # 2. Alembic Config nesnesi
 config = context.config
 
-# 3. .env içindeki DATABASE_URL'i Alembic konfigürasyonuna aktar
-DATABASE_URL = os.getenv("DATABASE_URL")
-if DATABASE_URL:
-    config.set_main_option("sqlalchemy.url", DATABASE_URL)
-
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# 4. Modellerimizi Alembic'e tanıtıyoruz
-import models  # noqa: F401 (Modellerin yüklenmesi için gerekli)
-from database import Base
-
 target_metadata = Base.metadata
+
+# 2. DATABASE_URL tanımını dinamik alma (Docker ortamındaki db:5432 adresini okur)
+DATABASE_URL = os.getenv("DATABASE_URL", settings.DATABASE_URL)
+print(f"--- ALEMBIC CONNECTING TO: {DATABASE_URL} ---")
+config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
 
 def run_migrations_offline() -> None:
-    """Offline modda migration çalıştırır."""
+    """Offline migration çalıştırma."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -45,14 +43,15 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
+    # Sadece migration komutlarında (upgrade/downgrade) yürüt, revision aşamasında çalıştırma
     context.configure(connection=connection, target_metadata=target_metadata)
 
     with context.begin_transaction():
         context.run_migrations()
 
 
-async def run_async_migrations() -> None:
-    """Asenkron veritabanı motoru ile migration çalıştırır."""
+async def run_migrations_online() -> None:
+    """Online (Async) migration çalıştırma."""
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -65,12 +64,7 @@ async def run_async_migrations() -> None:
     await connectable.dispose()
 
 
-def run_migrations_online() -> None:
-    """Online modda migration çalıştırır."""
-    asyncio.run(run_async_migrations())
-
-
 if context.is_offline_mode():
     run_migrations_offline()
 else:
-    run_migrations_online()
+    asyncio.run(run_migrations_online())
