@@ -3,6 +3,7 @@ from fastapi import status
 from httpx import AsyncClient
 
 from security import create_access_token
+from services.user_service import UserService
 
 
 # 1. Giriş Yapmış Kullanıcının Profilini Başarıyla Getirme Senaryosu
@@ -110,3 +111,29 @@ async def test_read_user_by_id_caching(client: AsyncClient, redis_client):
     cached_data = await redis_client.get(cache_key)
     assert cached_data is not None
     assert "cache_user" in cached_data
+
+# 7. Önbellek Temizleme (Cache Invalidation) Senaryosu
+@pytest.mark.asyncio
+async def test_invalidate_user_cache(client: AsyncClient, redis_client):
+    """UserService.invalidate_user_cache metodunun Redis'teki anahtarı sildiğini doğrular."""
+
+    # 1. Kullanıcı kaydı oluştur
+    reg_res = await client.post(
+        "/register",
+        json={
+            "username": "invalidation_user",
+            "email": "invalid@example.com",
+            "password": "password123",
+        },
+    )
+    user_id = reg_res.json()["id"]
+
+    # 2. Endpoint'e istek atarak veriyi önbelleğe yazdır
+    await client.get(f"/users/{user_id}")
+    cache_key = f"user:{user_id}"
+    assert await redis_client.get(cache_key) is not None
+
+    # 3. Cache Invalidation çalıştır ve anahtarın silindiğini doğrula
+    user_service = UserService(user_repo=None, redis=redis_client)
+    await user_service.invalidate_user_cache(user_id=user_id)
+    assert await redis_client.get(cache_key) is None

@@ -3,7 +3,7 @@ from typing import Annotated
 
 import jwt
 import redis.asyncio as aioredis
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import database
@@ -54,3 +54,36 @@ async def get_redis() -> aioredis.Redis:
 
 
 RedisSession = Annotated[aioredis.Redis, Depends(get_redis)]
+
+# --- RATE LIMITER DEPENDENCY FACTORY ---
+
+
+class RateLimiter:
+    """Redis INCR ve EXPIRE tabanlı Fixed-Window Rate Limiter mekanizması."""
+
+    def __init__(self, times: int, seconds: int):
+        self.times = times
+        self.seconds = seconds
+
+    async def __call__(
+        self,
+        request: Request,
+        redis: RedisSession,
+    ) -> None:
+        client_ip = request.client.host if request.client else "127.0.0.1"
+        endpoint_path = request.url.path
+        cache_key = f"rate_limit:{client_ip}:{endpoint_path}"
+
+        current_requests = await redis.incr(cache_key)
+
+        if current_requests == 1:
+            await redis.expire(cache_key, self.seconds)
+
+        if current_requests > self.times:
+            ttl = await redis.ttl(cache_key)
+            retry_after = ttl if ttl > 0 else self.seconds
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Rate limit exceeded. Maximum {self.times} requests per {self.seconds} seconds allowed.",
+                headers={"Retry-After": str(retry_after)},
+            )

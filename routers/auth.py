@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 import schemas
-from dependencies import DbSession
+from dependencies import DbSession, RateLimiter
 from repositories.user_repository import UserRepository
 from services.auth_service import AuthService
 
@@ -20,6 +20,7 @@ router = APIRouter(
     "/register",
     response_model=schemas.UserResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(RateLimiter(times=5, seconds=60))],
 )
 async def register_endpoint(
     user_in: schemas.UserCreate,
@@ -30,7 +31,11 @@ async def register_endpoint(
     return await auth_service.register_user(user_in=user_in)
 
 
-@router.post("/login", response_model=schemas.Token)
+@router.post(
+    "/login",
+    response_model=schemas.Token,
+    dependencies=[Depends(RateLimiter(times=5, seconds=60))],
+)
 async def login_endpoint(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: DbSession,
@@ -42,7 +47,11 @@ async def login_endpoint(
     )
 
 
-@router.post("/refresh", response_model=schemas.Token)
+@router.post(
+    "/refresh",
+    response_model=schemas.Token,
+    dependencies=[Depends(RateLimiter(times=10, seconds=60))],
+)
 async def refresh_token_endpoint(
     body: schemas.TokenRefreshRequest,
     db: DbSession,
