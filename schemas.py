@@ -45,6 +45,7 @@ class UserResponse(UserBase):
 
 # --- TOKEN SCHEMAS ---
 
+
 class Token(BaseModel):
     access_token: str
     refresh_token: str
@@ -58,7 +59,9 @@ class TokenRefreshRequest(BaseModel):
 class TokenData(BaseModel):
     user_id: int | None = None
 
+
 # --- RATE LIMITER SCHEMAS ---
+
 
 class RateLimitResponse(BaseModel):
     detail: str

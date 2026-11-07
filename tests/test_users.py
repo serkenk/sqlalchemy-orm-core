@@ -112,6 +112,7 @@ async def test_read_user_by_id_caching(client: AsyncClient, redis_client):
     assert cached_data is not None
     assert "cache_user" in cached_data
 
+
 # 7. Önbellek Temizleme (Cache Invalidation) Senaryosu
 @pytest.mark.asyncio
 async def test_invalidate_user_cache(client: AsyncClient, redis_client):
