@@ -1,3 +1,4 @@
+import os
 from collections.abc import AsyncGenerator
 
 import pytest_asyncio
@@ -11,9 +12,14 @@ from database import Base, get_db
 from dependencies import get_redis
 from main import app
 
+# Konteyner/Local ortamlarına dinamik uyum sağlayan URL tanımları
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", settings.TEST_DATABASE_URL)
+
+REDIS_URL = os.getenv("REDIS_URL", settings.REDIS_URL)
+
 # 1. Test Veritabanı Engine Tanımı (NullPool ile her test sıfır bağlantı kullanır)
 engine_test = create_async_engine(
-    settings.TEST_DATABASE_URL,
+    TEST_DATABASE_URL,
     echo=False,
     poolclass=NullPool,
 )
@@ -48,7 +54,7 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 async def redis_client() -> AsyncGenerator[aioredis.Redis, None]:
     """Testler için isolated Redis istemcisi sağlar ve test sonrası önbelleği temizler."""
     client = aioredis.from_url(
-        settings.REDIS_URL,
+        REDIS_URL,
         encoding="utf-8",
         decode_responses=True,
     )
