@@ -11,7 +11,7 @@ from services.auth_service import AuthService
 
 # APIRouter örneği oluşturuyoruz
 router = APIRouter(
-    prefix="",  # İstenirse prefix="/auth" yapılabilir, şimdilik URL'leri korumak için boş bırakıyoruz
+    prefix="",  # İstenirse prefix="/auth" yapılabilir.
     tags=["Auth"],  # Swagger dokümantasyonunda bu grupta görünecek
 )
 

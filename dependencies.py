@@ -33,8 +33,8 @@ async def get_current_user(
             raise credentials_exception
 
         user_id = int(user_id_str)
-    except (jwt.PyJWTError, ValueError):
-        raise credentials_exception
+    except (jwt.PyJWTError, ValueError) as err:
+        raise credentials_exception from err
 
     user_repo = UserRepository(db)
     user = await user_repo.get_by_id(user_id=user_id)
@@ -84,6 +84,9 @@ class RateLimiter:
             retry_after = ttl if ttl > 0 else self.seconds
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Rate limit exceeded. Maximum {self.times} requests per {self.seconds} seconds allowed.",
+                detail=(
+                    f"Rate limit exceeded. Maximum {self.times} requests "
+                    f"per {self.seconds} seconds allowed."
+                ),
                 headers={"Retry-After": str(retry_after)},
             )

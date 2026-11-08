@@ -7,7 +7,8 @@ from security import create_access_token
 
 @pytest.fixture
 async def authenticated_user(client: AsyncClient):
-    """Testler için kayıtlı bir kullanıcı ve yetkilendirilmiş header döndüren fixture."""
+    """Testler için kayıtlı bir kullanıcı ve"
+    " yetkilendirilmiş header döndüren fixture."""
     payload = {
         "username": "post_author",
         "email": "author@example.com",
@@ -22,7 +23,8 @@ async def authenticated_user(client: AsyncClient):
 
 @pytest.fixture
 async def second_user(client: AsyncClient):
-    """Ayrı yetki sınırlarını (Forbidden/Ownership) test etmek için ikincil kullanıcı."""
+    """Ayrı yetki sınırlarını (Forbidden/Ownership)"
+    " test etmek için ikincil kullanıcı."""
     payload = {
         "username": "other_user",
         "email": "other@example.com",

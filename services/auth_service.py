@@ -58,8 +58,8 @@ class AuthService:
                 raise credentials_exception
 
             user_id = int(user_id_str)
-        except (jwt.PyJWTError, ValueError):
-            raise credentials_exception
+        except (jwt.PyJWTError, ValueError) as err:
+            raise credentials_exception from err
 
         user = await self.user_repo.get_by_id(user_id=user_id)
         if user is None or not user.is_active:

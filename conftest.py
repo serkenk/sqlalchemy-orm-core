@@ -52,7 +52,8 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
 # 4. İzolasyonlu Redis Client Fixture'ı (Her test sonrası DB temizlenir)
 @pytest_asyncio.fixture
 async def redis_client() -> AsyncGenerator[aioredis.Redis, None]:
-    """Testler için isolated Redis istemcisi sağlar ve test sonrası önbelleği temizler."""
+    """Testler için isolated Redis istemcisi sağlar"
+    " ve test sonrası önbelleği temizler."""
     client = aioredis.from_url(
         REDIS_URL,
         encoding="utf-8",
