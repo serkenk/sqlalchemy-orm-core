@@ -4,15 +4,22 @@ from config import settings
 
 
 class LLMService:
-    """Asynchronous wrapper service for LLM completion operations."""
+    """Asynchronous wrapper service for LLM completion operations.
+
+    Supports both remote OpenAI models and local Ollama deployments.
+    """
 
     def __init__(
         self,
         client: Any | None = None,
         model: str | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
     ) -> None:
         self._client = client
-        self.model = model or settings.OPENAI_MODEL
+        self.model = model or settings.OLLAMA_MODEL
+        self.base_url = base_url or f"{settings.OLLAMA_BASE_URL}/v1"
+        self.api_key = api_key or "ollama"
 
     @property
     def client(self) -> Any:
@@ -20,7 +27,10 @@ class LLMService:
         if self._client is None:
             from openai import AsyncOpenAI
 
-            self._client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            self._client = AsyncOpenAI(
+                base_url=self.base_url,
+                api_key=self.api_key,
+            )
         return self._client
 
     async def generate_completion(
@@ -30,8 +40,10 @@ class LLMService:
         temperature: float = 0.7,
         max_tokens: int = 500,
     ) -> str:
-        """Sends an asynchronous chat completion
-        request to the configured LLM endpoint."""
+        """
+        Sends an asynchronous chat completion
+        request to the configured LLM endpoint.
+        """
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[

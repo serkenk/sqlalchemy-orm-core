@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = "mock-key-for-testing"
     OPENAI_MODEL: str = "gpt-4o-mini"
 
+    # Ollama Local LLM Configuration
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "qwen2.5-coder:1.5b"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

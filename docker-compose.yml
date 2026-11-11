@@ -31,7 +31,17 @@ services:
       timeout: 5s
       retries: 5
 
-  # 3. FastAPI Uygulamamız (Web API)
+  # 3. Yerel Açık Kaynak LLM Servisi (Ollama)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: notes_ollama
+    restart: always
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  # 4. FastAPI Uygulamamız (Web API)
   web:
     build: .
     container_name: notes_api
@@ -48,3 +58,4 @@ services:
 
 volumes:
   postgres_data:
+  ollama_data:
