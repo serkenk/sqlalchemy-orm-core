@@ -14,8 +14,14 @@ from main import app
 
 # Konteyner/Local ortamlarına dinamik uyum sağlayan URL tanımları
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", settings.TEST_DATABASE_URL)
+if "@db:" in TEST_DATABASE_URL or "@db/" in TEST_DATABASE_URL:
+    TEST_DATABASE_URL = TEST_DATABASE_URL.replace("@db:", "@localhost:").replace(
+        "@db/", "@localhost/"
+    )
 
 REDIS_URL = os.getenv("REDIS_URL", settings.REDIS_URL)
+if "@redis:" in REDIS_URL or "redis://redis:" in REDIS_URL:
+    REDIS_URL = REDIS_URL.replace("redis://redis:", "redis://localhost:")
 
 # 1. Test Veritabanı Engine Tanımı (NullPool ile her test sıfır bağlantı kullanır)
 engine_test = create_async_engine(
